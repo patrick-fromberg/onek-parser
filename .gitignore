@@ -1,0 +1,6 @@
+*.txt.user
+*.autosave
+*.backup
+*.user
+*.pro
+/build*

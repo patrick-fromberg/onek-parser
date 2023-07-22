@@ -1,0 +1,7 @@
+cmake_minimum_required(VERSION 3.26)
+project(onek-cpp-parser-lib LANGUAGES CXX)
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+include_directories(./ ../include)
+file(GLOB SOURCES ./*.h)
+add_library(onek-cpp-parser-lib INTERFACE ${SOURCES})

@@ -45,7 +45,7 @@ Here is a grammar for an arithmetic expression evaluator written in C++.
 
 This grammar applied to the expression "10 - (2 * 10) + 30" will create following AST graph. Note that you can add a name to every production. This name will be shown in the ast graph. The AST can also be executed and in that case, the actions you attach to the nodes will be triggered when their corresponding node is visited.
 
-![example AST](example.png)
+![example AST](doc/example_ast.png)
 
 As you can see the sub-nodes are flattend agains those nodes that are bound to an action. The actions interpret the code and are easy to write as they travers the children of the action node linearly. For right associative operators they need to traverse those sub-nodes in reverse order.
 
