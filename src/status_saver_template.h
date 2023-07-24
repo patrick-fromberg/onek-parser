@@ -9,7 +9,7 @@ namespace onek {
         T const status_;
 
         public:
-        status_saver(T const &x) noexcept
+        explicit status_saver(T const &x) noexcept
             : status_(x) {
         }
         void restore_to(T &x) const noexcept {

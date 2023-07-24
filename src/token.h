@@ -8,7 +8,6 @@ namespace onek {
         error,
         the_end,
         ident,
-        keyword,
         int_number,
         float_number,
         delimiter,
@@ -20,8 +19,6 @@ namespace onek {
     };
 
     constexpr unsigned short TOKEN_FLAG_NONE = 0;
-    constexpr unsigned short TOKEN_FLAG_LEFT_ASSOCIATIVE = 1;
-    constexpr unsigned short TOKEN_FLAG_RIGHT_ASSOCIATIVE = 2;
     constexpr unsigned short TOKEN_FLAG_DELIM_IN_BETWEEN = 4;
     constexpr unsigned short TOKEN_FLAG_DELIM_AT_END = 8;
     constexpr unsigned short TOKEN_FLAG_ACTION_PARENT = 16;
@@ -35,7 +32,6 @@ namespace onek {
             case token_id::error: return "error";
             case token_id::the_end: return "the_end";
             case token_id::ident: return "ident";
-            case token_id::keyword: return "keyword";
             case token_id::int_number: return "int_number";
             case token_id::float_number: return "float_number";
             case token_id::delimiter: return "delimiter";

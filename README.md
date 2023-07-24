@@ -2,43 +2,55 @@
 
 *onek-parser* is a minimalistic backtracking recursive descent parser. Its input is kind of C++ compatible EBNF and it generates an AST directly in memory without intermediate code generation.
 
-*"onek"* stands for *"this program/library is made with less than 1000 lines of code"*
+
+*"onek"* stands for *"this program/library is made with less than 1000 lines of code"*, which sums up my motivation for writing this library. I previously used [Boost Spirit](https://www.boost.org/doc/libs/1_79_0/libs/spirit/doc/html/spirit/introduction.html), from where I copied some ideas, but with 140,000 lines of code, Spirit is too havy to include in many projects. 
+
+The main difference between onek-parser and other parsers are:
+
+- With onek, left recursion needs to be transformed into right recursion as usual but the program will remain left associative unless special provision are taken. Operator precedence is however handled within the grammar (even though it could be done in an action aswell).
+- onek-parser uses generic tokens that can be parameterised with strings. For most purposes the list of tokens does not need to be adapted to each language parsed. Instead of open_curly, open_angled etc... we use open("{"), open("<") etc...
 
 ```
                                 CURRENT DEVELOPMENT STATUS: WORK IN PROGRESS
 ```
 
-The motivation for writing this code was my experience with Boost Spirit, which is too complicated for my taste and with 140,000 lines of code to havy to include in some projects. Onek combines mini parsers to create bigger parsers.
-
-The main difference between onek-parser and other parsers are: 
-
-- left recursion needs to be transformed into right recursion but the program will remain left associative unless special provision are taken outside of the grammar.
-- onek-parser uses generic tokens that can be parameterised with strings. For most purposes the list of tokens does not need to be adapted to each language parsed.
-
 # The grammar
 
-Here is a grammar for an arithmetic expression evaluator written in C++.
+Here is a grammar for an arithmetic expression evaluator. Note that most of the code is lambda definitions that are alwasy the same for any grammar. For the arithmetic expression grammar below you would only need to write 4 lines of code
 ```
-        // we need these palceholders to deal with right recursive productions.
-        // left recursive productions are forbidden.
+    auto grammar(onek::scan_state &scn) {
+        auto handle = onek::arena_handle();
 
-        auto p_expr = onek::make_arena_ptr<C>(handle, "expr");
-        auto p_term = onek::make_arena_ptr<C>(handle, "term");
+        // shortcuts for creating terminals
+        auto the_end = [&scn, &handle]() { return onek::make_arena_ptr<T>(handle, onek::token_id::the_end, [&scn]() -> std::string_view { return scn.is_end() ? "of the story" : std::string_view{}; }); };
+        auto int_number = [&scn, &handle]() { return onek::make_arena_ptr<T>(handle, onek::token_id::int_number, scn, "^[0-9]+"); };
+        auto float_number = [&scn, &handle]() { return onek::make_arena_ptr<T>(handle, onek::token_id::float_number, scn, "^[0-9]*[.][0-9]+"); };
+        auto ident = [&scn, &handle]() { return onek::make_arena_ptr<T>(handle, onek::token_id::ident, scn, "^[A-Z][A-Z0-9_-]+"); };
+        auto open = [&scn, &handle]<typename... F>(F... f) { return onek::make_arena_ptr<T>(handle, onek::token_id::open, scn, onek::FilterType{f...}); };
+        auto close = [&scn, &handle]<typename... F>(F... f) { return onek::make_arena_ptr<T>(handle, onek::token_id::close, scn, onek::FilterType{f...}); };
+        auto prefix_op = [&scn, &handle]<typename... F>(F... f) { return onek::make_arena_ptr<T>(handle, onek::token_id::func, scn, onek::FilterType{f...}, onek::TOKEN_FLAG_PREFIX); };
+        auto infix_op = [&scn, &handle]<typename... F>(F... f) { return onek::make_arena_ptr<T>(handle, onek::token_id::func, scn, onek::FilterType{f...}, onek::TOKEN_FLAG_INFIX); };
+        auto postfix_op = [&scn, &handle]<typename... F>(F... f) { return onek::make_arena_ptr<T>(handle, onek::token_id::func, scn, onek::FilterType{f...}, onek::TOKEN_FLAG_POSTFIX); };
+        auto func = prefix_op;
 
-        // following rules contain right recursion but you can see in the following ast graph that
-        // this does not result in right associativity. onek-parser creats these graphviz diagrams automatically
+        // shortcuts for creating placeholders
+        // lambda p creates a normal placeholder
+        // lambda f creates a placeholder that does not create a new action root
+        auto p = [&handle](const char * name) { return onek::make_arena_ptr<C>(handle, name, onek::TOKEN_FLAG_PLACEHOLDER | onek::TOKEN_FLAG_ACTION_PARENT); };
+        auto f = [&handle](const char * name) { return onek::make_arena_ptr<C>(handle, name, onek::TOKEN_FLAG_PLACEHOLDER); };
 
-        auto sub_expr = ( open("(") >> p_exp >> close(")")          )->name(handle, "sub_expr");
-        auto ufactor =  ( int_number() | float_number() | sub_expr  )->name(handle, "ufactor");
-        auto factor =   (-prefix_op("-") >> ufactor                 )->name(handle, "factor")->action(handle, unary_op_action);
-        auto term_x =   ( factor >> *(infix_op("*", "/") >> p_term) )->name(handle, "term_x");
-        auto term =     ( clone(term_x)                             )->name(handle, "term")->action(handle, arithmetic_op_action);
-        auto expr_x =   ( term >> *(infix_op("+", "-") >> p_expr_x) )->name(handle, "expr_x");
-        auto expr =     ( clone(expr_x)                             )->name(handle, "expr")->action(handle, arithmetic_op_action);
-        auto program =  ( expression >> the_end()                   )->name(handle, "program", true);
+        // clang-format off
+        auto sub_expression =   prod( open("(") >> p("expression") >> close(")")      , "sub");
+        auto unsigned_factor =  prod( int_number() | sub_expression                   , "unsigned factor");
+        auto factor =           prod((-prefix_op("-") >> unsigned_factor)             , unary_op_action, "factor");
+        auto term =             prod( factor >> *(infix_op("*", "/") >> f("term"))    , arithmetic_op_action, "term");
+        auto expression =       prod( term >> *(infix_op("+", "-") >> f("expression")), arithmetic_op_action, "expression");
+        auto program =          prod( expression >> the_end()                         , "program");
+        // clang-format on
 
-        p_expr->copy_bahaviour(expr);
-        p_term->copy_bahaviour(term);
+        onek::rewire_placeholders<F> fix(program.get());
+        return program;
+    }
 ```
 
 # The Abstract Syntax Tree
@@ -95,7 +107,7 @@ In the above grammar, the action `arithmetic_op_action` is bound to expressions 
    |   a | b        |       a |  b         |
 ```
 
-# Conclusion
+# Summary
 
-To use the *onek-parser* you need to write grammars and actions and very occasionally adapt tokens (some languages allow hyphens in names and others not for e.g.). If you need to change the code, you can easily do so as this project consists of less than thousand lines of code (not counting test code and error reporting.
+To use the *onek-parser* you need to write grammars and actions and very occasionally adapt tokens (for e.g.: some languages allow hyphens in names). You do not need to deal with associativity at the grammar level. If you need to change the code, you can easily do so as this project consists of less than thousand lines of code (not counting test code and error reporting.
 

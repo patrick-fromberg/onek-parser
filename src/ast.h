@@ -22,13 +22,12 @@ namespace onek {
         // todo: remove name parameter and guess it later on
         ast_node_t *add_node(ast_node_t::action_function action, token_id id, const char *name, ast_node_t *parent_node, std::string_view const &tokenstr, unsigned short flags = TOKEN_FLAG_NONE) noexcept {
 
-            // mark nodes that are roots or a bracketed expression. This is only for
+            // mark nodes that are roots of a bracketed expression. This is only for
             // pretty printing the ast in to a grapviz file.
             auto xxx = parent_node;
-            if (id == token_id::open) {
+            if (id == token_id::open) {//todo: rename id which is different from graph disambituation id
                 while (xxx) {
                     if (xxx->flags & TOKEN_FLAG_ACTION_PARENT) {
-                        auto a = xxx->tokenstr;
                         xxx->tokenstr = "(...)";
                         break;
                     }
@@ -44,10 +43,17 @@ namespace onek {
             // the children of the action nodes - from left to right to get left associativity
             // and vice versa to get right associativity.
             ast_node_t *added_node = &memory_.back();
+
             if (id == token_id::open || id == token_id::close)
                 return added_node;
-            if (id == token_id::composed && !(TOKEN_FLAG_ACTION_PARENT & flags))
+
+            if (id == token_id::composed && !(TOKEN_FLAG_ACTION_PARENT & flags)) {
+                if (!parent_node) {
+                    added_node->flags |= TOKEN_FLAG_ACTION_PARENT;
+                    added_node->name_ = "start";
+                }
                 return added_node;
+            }
 
             while (parent_node) {
                 if (parent_node->flags & TOKEN_FLAG_ACTION_PARENT) {

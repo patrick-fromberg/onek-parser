@@ -37,11 +37,11 @@ namespace onek {
             file.close();
         }
 
-        void add_edge(std::string parent_name, ushort parent_id, std::string child_name, std::string_view info, ushort child_id) {
+        void add_edge(std::string_view parent_name, ushort parent_id, std::string_view child_name, std::string_view info, ushort child_id) {
             if (vertices_s[parent_id].empty())
                 vertices_s[parent_id] = parent_name;
             if (vertices_s[child_id].empty())
-                vertices_s[child_id] = child_name + "\\n" + std::string(info);
+                vertices_s[child_id] = std::string(child_name) + "\\n" + std::string(info);
             vertices_i[parent_id] = parent_id;//   ++counter;
             vertices_i[child_id] = child_id;  // ++counter;
             edges.emplace_back(parent_id, child_id);

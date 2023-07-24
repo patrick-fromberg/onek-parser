@@ -4,7 +4,7 @@
 
 #define BOOST_TEST_DYN_LINK
 #define BOOST_TEST_MAIN// in only one cpp file
-#define BOOST_TEST_MODULE Calculator
+//#define BOOST_TEST_MODULE Calculator
 #include <boost/test/unit_test.hpp>
 #include <boost/type_index.hpp>
 
@@ -16,7 +16,6 @@ namespace example {
     using C = onek::composed_parser<F>;
     using T = onek::terminal_parser<F>;
     using N = onek::ast_node<F>;
-    using S = onek::scan_state;
 
     struct my_parser_configuration {
         using ast_node_value = V;
@@ -35,11 +34,11 @@ namespace example {
                 case onek::token_id::func: return { node.tokenstr.front() };
                 case onek::token_id::int_number: return {atol(node.tokenstr.begin())};
                 case onek::token_id::float_number: return {atof(node.tokenstr.begin())};
-                default: assert(false);
+                default: break;
             };
             // clang-format on
-
-            return {};
+            assert(false);
+            //return {};
         }
     };
 
@@ -98,9 +97,10 @@ namespace example {
     auto grammar(onek::scan_state &scn) {
         auto handle = onek::arena_handle();
 
+        // shortcuts for creating terminals
         auto the_end = [&scn, &handle]() { return onek::make_arena_ptr<T>(handle, onek::token_id::the_end, [&scn]() -> std::string_view { return scn.is_end() ? "of the story" : std::string_view{}; }); };
-        auto int_number = [&scn, &handle]() { return onek::make_arena_ptr<T>(handle, onek::token_id::int_number, scn, "^[0-9]+"); };
-        auto float_number = [&scn, &handle]() { return onek::make_arena_ptr<T>(handle, onek::token_id::float_number, scn, "^[0-9]*[.][0-9]+"); };
+        auto int_number = [&scn, &handle]() { return onek::make_arena_ptr<T>(handle, onek::token_id::int_number, scn, "^[-]{0,1}[0-9]+"); };
+        auto float_number = [&scn, &handle]() { return onek::make_arena_ptr<T>(handle, onek::token_id::float_number, scn, "^[-]{0,1}[0-9]*[.][0-9]+"); };
         auto ident = [&scn, &handle]() { return onek::make_arena_ptr<T>(handle, onek::token_id::ident, scn, "^[A-Z][A-Z0-9_-]+"); };
         auto open = [&scn, &handle]<typename... F>(F... f) { return onek::make_arena_ptr<T>(handle, onek::token_id::open, scn, onek::FilterType{f...}); };
         auto close = [&scn, &handle]<typename... F>(F... f) { return onek::make_arena_ptr<T>(handle, onek::token_id::close, scn, onek::FilterType{f...}); };
@@ -109,36 +109,31 @@ namespace example {
         auto postfix_op = [&scn, &handle]<typename... F>(F... f) { return onek::make_arena_ptr<T>(handle, onek::token_id::func, scn, onek::FilterType{f...}, onek::TOKEN_FLAG_POSTFIX); };
         auto func = prefix_op;
 
-        // we need placeholder parsers for the recursive production rules and they need to be
-        // held by a weak pointer such that no circular referencing happens at the level
-        // of the shared pointers.
-        auto p_expression = onek::make_arena_ptr<C>(handle, "expression");
-        auto p_expression_x = onek::make_arena_ptr<C>(handle, "expression_x");
-        auto p_term = onek::make_arena_ptr<C>(handle, "term");
-        auto p_term_x = onek::make_arena_ptr<C>(handle, "term_x");
+        // shortcuts for creating placeholders
+        // lambda p creates a normal placeholder, i.e. one that is an action root.
+        // lambda f creates a placeholder that does not create a new action root
+        auto p = [&handle](const char * name) { return onek::make_arena_ptr<C>(handle, name, onek::TOKEN_FLAG_PLACEHOLDER | onek::TOKEN_FLAG_ACTION_PARENT); };
+        auto f = [&handle](const char * name) { return onek::make_arena_ptr<C>(handle, name, onek::TOKEN_FLAG_PLACEHOLDER); };
 
-        // Every rule constructs a src by combining smaller parsers
+        // ATTENTION! Note that the placeholders are bound to their original productions by neame search.
+        // Misspelling the names "expression" and "term" above will result in an error
+        // Diagnostic messages for thes errors will only be produced if the last parameter of function
+        // rewire_placeholders below is 'true'
+
         // clang-format off
-        auto sub_expression =   ( open("(") >> p_expression >> close(")")             )->debug_name(handle, "sub_expression");
-        auto unsigned_factor =  ( int_number() | float_number() | sub_expression      )->debug_name(handle, "unsigned factor");
-        auto factor =           (-prefix_op("-") >> unsigned_factor                   )->action(handle, unary_op_action)->debug_name(handle, "factor");
-        auto term_x =           ( factor >> *(infix_op("*", "/") >> p_term_x)         )->debug_name(handle,"term_x");
-        auto term =             ( clone(term_x)                                       )->action(handle, arithmetic_op_action)->debug_name(handle, "term");
-        auto expression_x =     ( term >> *(infix_op("+", "-") >> p_expression_x)     )->debug_name(handle,"expression_x");
-        auto expression =       ( clone(expression_x)                                 )->action(handle, arithmetic_op_action)->debug_name(handle, "expression");
-        auto program =          ( expression >> the_end()                             )->debug_name(handle, "program", true);
+        auto sub_expression =   prod( open("(") >> p("expression") >> close(")")      , "sub");
+        auto factor =           prod( int_number() | sub_expression                   , "unsigned factor");
+        auto term =             prod( factor >> *(infix_op("*", "/") >> f("term"))    , arithmetic_op_action, "term");
+        auto expression =       prod( term >> *(infix_op("+", "-") >> f("expression")), arithmetic_op_action, "expression");
+        auto program =          prod( expression >> the_end()                         , "program");
         // clang-format on
 
-        // bind the placeholder parsers to their corresponding parsers
-        p_expression->copy_bahaviour(expression);
-        p_expression_x->copy_bahaviour(expression_x);
-        p_term->copy_bahaviour(term);
-        p_term_x->copy_bahaviour(term_x);
+        onek::rewire_placeholders<F> (program.get(), true);
         return program;
     }
 }
 
-void test_simple_expression(std::string_view text, long right_result, char const *ast_graph) {
+void test_expression(std::string_view text, long right_result, char const *ast_graph) {
 
     auto print_variant_type = [](auto &&value) {
         using T = std::decay_t<decltype(value)>;
@@ -166,13 +161,16 @@ void test_simple_expression(std::string_view text, long right_result, char const
     auto destroyer = onek::arena_destroyer(handle);
 }
 
-BOOST_AUTO_TEST_CASE(simple_expression) {
-    test_simple_expression("1 + 1", 2, "ast1.gv");
-    test_simple_expression("1 - 2 + 3", 2, "ast2.gv");
-    test_simple_expression("2 * 3", 6, "ast3.gv");
-    test_simple_expression("2 + 3 * 7", 23, "ast4.gv");
-    test_simple_expression("(2 + 3) * 7", 35, "ast5.gv");
-    test_simple_expression("(2 + -3) * 7", -7, "ast6.gv");
-    test_simple_expression("(2 -  3) * -7", 7, "ast7.gv");
-    test_simple_expression("10 - (2 * 10) + 30", 20, "ast8.gv");
-}
+
+// clang-format off
+BOOST_AUTO_TEST_SUITE(arithmetic_expressions);
+BOOST_AUTO_TEST_CASE(simple_expression1)    { test_expression("1 + 2", 3, "ast1.gv"); }
+BOOST_AUTO_TEST_CASE(simple_expression2)    { test_expression("1 + 2 - 3", 0, "ast2.gv"); }
+BOOST_AUTO_TEST_CASE(simple_expression3)    { test_expression("1 * 2 + 3", 5, "ast3.gv"); }
+BOOST_AUTO_TEST_CASE(simple_expression4)    { test_expression("1 + 2 * 3", 7, "ast4.gv"); }
+BOOST_AUTO_TEST_CASE(parenthesis5)          { test_expression("(1 + 2) * 3", 9, "ast5.gv"); }
+BOOST_AUTO_TEST_CASE(parenthesis6)          { test_expression("2 * (3 + 4)", 14, "ast6.gv"); }
+BOOST_AUTO_TEST_CASE(associativity7)        { test_expression("1 - 2 + 3", 2, "ast7.gv"); }
+BOOST_AUTO_TEST_CASE(negative_number8)      { test_expression("(1 - -2) * 3", 9, "ast8.gv"); }
+BOOST_AUTO_TEST_SUITE_END();
+// clang-format on

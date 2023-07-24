@@ -16,37 +16,39 @@
 namespace onek {
 
     template<typename Configuration>
+    class composed_parser;
+    template<typename Configuration>
+    class terminal_parser;
+
+    template<typename Configuration>
     class parser_base {
         public:
+        composed_parser<Configuration> *parent_ = nullptr;
+
+        bool isRewired = false;
+        [[nodiscard]] virtual bool isComposed() const = 0;
         virtual bool parse(ast<Configuration> &a, scan_state &scn, ast_node<Configuration> *ast_parent, bool reportErrors) const noexcept = 0;
     };
 
     template<typename Configuration>
-    using parser_ptr = arena_ptr<parser_base<Configuration>>;
-
-    template<typename Configuration>
     class terminal_parser : public parser_base<Configuration> {
+        public:
         size_t min_repeat_ = 1;
         size_t max_repeat_ = 1;
         const char *delim_ = nullptr;
         const char *name_ = "unknown";
-        token_id token_id_;
-        FilterType filters_{0, 0, 0, 0, 0};// todo: remove this field, capture it insead in the corresponding lambdas
+        const token_id token_id_;
+
+        FilterType filters_{nullptr, nullptr, nullptr, nullptr, nullptr};// todo: think of something better
         ushort flags_ = TOKEN_FLAG_NONE;
         using match_function = std::function<std::string_view()>;
         match_function match_;
 
         public:
         using configuration = Configuration;
-        using ptr = std::shared_ptr<terminal_parser>;
 
-        auto repeat(size_t minrep, size_t maxrep) {
-            min_repeat_ = minrep;
-            max_repeat_ = maxrep;
-        }
-
-        terminal_parser(token_id token_id_, match_function const &match, ushort flags = TOKEN_FLAG_NONE)
-            : name_(token_to_string(token_id_)), token_id_(token_id_), flags_(flags), match_(match){};
+        terminal_parser(token_id token_id_, match_function match, ushort flags = TOKEN_FLAG_NONE)
+            : name_(token_to_string(token_id_)), token_id_(token_id_), flags_(flags), match_(std::move(match)){};
 
         terminal_parser(token_id token_id_, scan_state &scn, char const *match, ushort flags = TOKEN_FLAG_NONE)
             : name_(token_to_string(token_id_)), token_id_(token_id_), flags_(flags) {
@@ -72,8 +74,8 @@ namespace onek {
             };
         }
 
-        terminal_parser(token_id token_id_, match_function const &match, FilterType filters_, ushort flags = TOKEN_FLAG_NONE)
-            : name_(token_to_string(token_id_)), token_id_(token_id_), filters_(filters_), flags_(flags), match_(match){};
+        terminal_parser(token_id token_id_, match_function match, FilterType filters_, ushort flags = TOKEN_FLAG_NONE)
+            : name_(token_to_string(token_id_)), token_id_(token_id_), filters_(filters_), flags_(flags), match_(std::move(match)){};
 
         terminal_parser(token_id token_id_, scan_state &scn, FilterType const &filters, ushort flags = TOKEN_FLAG_NONE)
             : name_(token_to_string(token_id_)), token_id_(token_id_), filters_(filters), flags_(flags) {
@@ -96,6 +98,8 @@ namespace onek {
                 return {};
             };
         }
+
+        [[nodiscard]] bool isComposed() const override { return false; }
 
         bool parse(ast<Configuration> &a, scan_state &scn, ast_node<Configuration> *ast_parent, bool reportErrors = false) const noexcept override {
             // see next overload of function parse for comments
@@ -151,56 +155,38 @@ namespace onek {
 
     template<typename Configuration>
     class composed_parser : public parser_base<Configuration> {
-
-        using P = parser_ptr<Configuration>;
-        using combined_match_ = std::function<bool(P, P, ast<Configuration> &a, scan_state &scn, ast_node<Configuration> *ast_parent, bool expectFlag)>;
+        public:
         size_t min_repeat_ = 1;
         size_t max_repeat_ = 1;
+        private:
         const char *delim_ = nullptr;
-        const char *name_ = "anonymous";
-        ushort flags_ = TOKEN_FLAG_NONE;
+
+        //using P = parser_ptr<Configuration>;
+        using B = parser_base<Configuration>;
+        using combined_match_ = std::function<bool(B *, B *, ast<Configuration> &a, scan_state &scn, ast_node<Configuration> *ast_parent, bool expectFlag)>;
         combined_match_ match_;
-        ast_node<Configuration>::action_function action_ = Configuration::default_action;
 
         public:
-        using configuration = Configuration;
-        using ptr = arena_ptr<composed_parser>;
+        ast_node<Configuration>::action_function action_ = Configuration::default_action;
+        const char *name_ = "unknown";
+        ushort flags_ = TOKEN_FLAG_NONE;
 
-        parser_ptr<Configuration> left_;
-        parser_ptr<Configuration> right_;
+        using configuration = Configuration;
+
+        B *left_ = nullptr;
+        B *right_ = nullptr;
 
         composed_parser(composed_parser const &) = default;
 
-        composed_parser(combined_match_ match, P left, P right)
+        composed_parser(combined_match_ match, B *left, B *right)
             : match_(match), left_(left), right_(right) {
         }
 
-        explicit composed_parser(const char *name)
-            : name_(name), flags_(TOKEN_FLAG_PLACEHOLDER) {
+        explicit composed_parser(const char *name, ushort flags)
+            : name_(name), flags_(flags) {
         }
 
-        auto repeat(size_t minrep, size_t maxrep) {
-            min_repeat_ = minrep;
-            max_repeat_ = maxrep;
-        }
-
-        ptr debug_name(arena_handle &h, const char *composed_node_name, bool make_action_parent = false) noexcept {
-            if (make_action_parent)
-                flags_ = TOKEN_FLAG_ACTION_PARENT;
-            name_ = composed_node_name;
-            return make_arena_ptr(h, *this);
-        }
-
-        ptr action(arena_handle &h, ast_node<Configuration>::action_function act) {
-            // attach action to node
-            flags_ = TOKEN_FLAG_ACTION_PARENT;
-            action_ = act;
-            return make_arena_ptr(h, *this);
-            // todo: check when clone when ref
-            //ptr->flags_ = TOKEN_FLAG_ACTION_PARENT;
-            //ptr->action_ = act;
-            //return ptr;
-        }
+        [[nodiscard]] bool isComposed() const override { return true; }
 
         std::optional<ast<Configuration>> parse(scan_state &scn, ast_node<Configuration> *ast_parent, bool reportErrors) const noexcept {
             ast<Configuration> a;
@@ -273,12 +259,16 @@ namespace onek {
             return true;
         }
 
-        void copy_bahaviour(ptr const &n) {
+        void copy_bahaviour(composed_parser<Configuration> * n) {
+
+            // no placeholder-placeholder
             assert(flags_ & TOKEN_FLAG_PLACEHOLDER && !(n->flags_ & TOKEN_FLAG_PLACEHOLDER));
+
+            // copy all members except the repeat counts, parent node and flags
+            delim_ = n->delim_;
             name_ = n->name_;
             match_ = n->match_;
             action_ = n->action_;
-            flags_ = n->flags_;
             left_ = n->left_;
             right_ = n->right_;
         }

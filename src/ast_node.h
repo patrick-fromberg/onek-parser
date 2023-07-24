@@ -13,7 +13,7 @@ namespace onek {
         using ast_node_value = Configuration::ast_node_value;
         using action_function = std::function<ast_node_value(ast_node<Configuration> const &)>;
         action_function action_;
-        token_id token_id_;
+        token_id token_id_ = token_id::error;
         std::string_view tokenstr;
         char const *name_ = "unknown";
         unsigned short flags = TOKEN_FLAG_NONE;
@@ -21,7 +21,7 @@ namespace onek {
         ast_node *first_child_ = nullptr;
         ast_node *next_sibbling_ = nullptr;// todo, rename
         ast_node *last_child_ = nullptr;
-        ushort id = ++uuid;
+        ushort id = ++uuid;// only needed for debugging
 
         ast_node_value action() const noexcept {
             return action_(*this);

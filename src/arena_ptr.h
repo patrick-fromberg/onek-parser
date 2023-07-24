@@ -25,7 +25,7 @@ namespace onek {
     class ptr_base {
         public:
         arena *arena_ = nullptr;
-        ptr_base(arena *arena_) : arena_(arena_) {}
+        explicit ptr_base(arena *arena_) : arena_(arena_) {}
 
         friend arena_handle;
         template<typename T, typename... Args>
@@ -41,7 +41,7 @@ namespace onek {
 
         public:
         arena_handle() = default;
-        arena_handle(ptr_base const &base) : arena_(base.arena_){};
+        explicit arena_handle(ptr_base const &base) : arena_(base.arena_){};
 
         friend class arena_destroyer;
         template<typename T, typename... Args>
@@ -54,7 +54,7 @@ namespace onek {
         arena *arena_;
 
         public:
-        arena_destroyer(arena_handle const &handle) : arena_(handle.arena_) {}
+        explicit arena_destroyer(arena_handle const &handle) : arena_(handle.arena_) {}
         ~arena_destroyer() {
             if (arena_) {
                 delete arena_;
@@ -72,17 +72,13 @@ namespace onek {
         public:
         arena_ptr() : ptr_base(nullptr), value_ptr_(nullptr){};
 
-        template<typename Other>
-        arena_ptr(Other const &other)
+        arena_ptr(arena_ptr const &other)
             : ptr_base(other.arena_), value_ptr_(other.value_ptr_) {
-        }
-        template<typename Other>
-        arena_ptr &operator=(Other const &other) {
-            arena_ = other.arena_;
-            value_ptr_ = other.value_ptr_;
         }
 
         using element_type = T;
+        // override -> but not *, = or + because those are already
+        // used for the grammar to make it look EBNF like.
         T *operator->() noexcept { return value_ptr_; }
         T const *operator->() const noexcept { return value_ptr_; }
 
