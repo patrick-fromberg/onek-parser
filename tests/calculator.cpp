@@ -3,8 +3,8 @@
 #include <variant>
 
 #define BOOST_TEST_DYN_LINK
-#define BOOST_TEST_MAIN// in only one cpp file
-//#define BOOST_TEST_MODULE Calculator
+//#define BOOST_TEST_MAIN  // in only one cpp file
+#define BOOST_TEST_MODULE Calculator
 #include <boost/test/unit_test.hpp>
 #include <boost/type_index.hpp>
 
@@ -12,37 +12,31 @@ namespace example {
 
     struct my_parser_configuration;
     using F = my_parser_configuration;
-    using V = std::variant<long, char, double>;
     using C = onek::composed_parser<F>;
     using T = onek::terminal_parser<F>;
     using N = onek::ast_node<F>;
 
     struct my_parser_configuration {
-        using ast_node_value = V;
+        using V = std::variant<long, char, double>;
 
-        static inline ast_node_value default_action(onek::ast_node<my_parser_configuration> const &node) noexcept {
-            auto lonely_child = node.first_child_;
-            if (lonely_child) {
-                if (lonely_child->next_sibbling_)
-                    if (lonely_child->token_id_ == onek::token_id::open)
-                        return lonely_child->next_sibbling_->action();
-                return lonely_child->action();
+        static inline V default_action(N const &node) noexcept {
+            if (node.isTerminal()) {
+                switch (node.token_id_) {
+                    case onek::token_id::func: return {node.tokenstr.front()};
+                    case onek::token_id::int_number: return {atol(node.tokenstr.begin())};
+                    case onek::token_id::float_number: return {atof(node.tokenstr.begin())};
+                    default: break;
+                }
+                assert(false);
+            } else {
+                auto child = node.first_child_->next_sibbling_;
+                assert(!child || child->token_id_ == onek::token_id::the_end);
+                return node.first_child_->action();
             }
-
-            // clang-format off
-            switch(node.token_id_) {
-                case onek::token_id::func: return { node.tokenstr.front() };
-                case onek::token_id::int_number: return {atol(node.tokenstr.begin())};
-                case onek::token_id::float_number: return {atof(node.tokenstr.begin())};
-                default: break;
-            };
-            // clang-format on
-            assert(false);
-            //return {};
         }
     };
 
-    V unary_op_action(N const &node) noexcept {
+    F::V unary_op_action(N const &node) noexcept {
         // if only the operand but not the operator was present, then
         // pass through the value
         if (!node.first_child_->next_sibbling_)
@@ -54,7 +48,7 @@ namespace example {
 
         // and swap operand and operator if the second
         // is a postfix operator
-        if (node.flags & onek::TOKEN_FLAG_POSTFIX)
+        if (node.flags & onek::FLAG_POSTFIX)
             std::swap(operand, func);
 
         // otherwise the first child contains the unary operation
@@ -66,7 +60,7 @@ namespace example {
         return {lambda_(c0_value, c1_value)};
     }
 
-    V arithmetic_op_action(N const &node) noexcept {
+    F::V arithmetic_op_action(N const &node) noexcept {
         N *left = node.first_child_;
         long left_value = std::get<long>(left->action());
         long sum = left_value;
@@ -94,7 +88,7 @@ namespace example {
         return {sum};
     }
 
-    auto grammar(onek::scan_state &scn) {
+    onek::arena_ptr<C> grammar(onek::scan_state &scn) {
         auto handle = onek::arena_handle();
 
         // shortcuts for creating terminals
@@ -104,20 +98,20 @@ namespace example {
         auto ident = [&scn, &handle]() { return onek::make_arena_ptr<T>(handle, onek::token_id::ident, scn, "^[A-Z][A-Z0-9_-]+"); };
         auto open = [&scn, &handle]<typename... F>(F... f) { return onek::make_arena_ptr<T>(handle, onek::token_id::open, scn, onek::FilterType{f...}); };
         auto close = [&scn, &handle]<typename... F>(F... f) { return onek::make_arena_ptr<T>(handle, onek::token_id::close, scn, onek::FilterType{f...}); };
-        auto prefix_op = [&scn, &handle]<typename... F>(F... f) { return onek::make_arena_ptr<T>(handle, onek::token_id::func, scn, onek::FilterType{f...}, onek::TOKEN_FLAG_PREFIX); };
-        auto infix_op = [&scn, &handle]<typename... F>(F... f) { return onek::make_arena_ptr<T>(handle, onek::token_id::func, scn, onek::FilterType{f...}, onek::TOKEN_FLAG_INFIX); };
-        auto postfix_op = [&scn, &handle]<typename... F>(F... f) { return onek::make_arena_ptr<T>(handle, onek::token_id::func, scn, onek::FilterType{f...}, onek::TOKEN_FLAG_POSTFIX); };
+        auto prefix_op = [&scn, &handle]<typename... F>(F... f) { return onek::make_arena_ptr<T>(handle, onek::token_id::func, scn, onek::FilterType{f...}, onek::FLAG_PREFIX); };
+        auto infix_op = [&scn, &handle]<typename... F>(F... f) { return onek::make_arena_ptr<T>(handle, onek::token_id::func, scn, onek::FilterType{f...}, onek::FLAG_INFIX); };
+        auto postfix_op = [&scn, &handle]<typename... F>(F... f) { return onek::make_arena_ptr<T>(handle, onek::token_id::func, scn, onek::FilterType{f...}, onek::FLAG_POSTFIX); };
         auto func = prefix_op;
 
         // shortcuts for creating placeholders
         // lambda p creates a normal placeholder, i.e. one that is an action root.
         // lambda f creates a placeholder that does not create a new action root
-        auto p = [&handle](const char * name) { return onek::make_arena_ptr<C>(handle, name, onek::TOKEN_FLAG_PLACEHOLDER | onek::TOKEN_FLAG_ACTION_PARENT); };
-        auto f = [&handle](const char * name) { return onek::make_arena_ptr<C>(handle, name, onek::TOKEN_FLAG_PLACEHOLDER); };
+        auto p = [&handle](const char *name) { return onek::make_arena_ptr<C>(handle, name, onek::FLAG_PLACEHOLDER | onek::FLAG_ACTION_PARENT); };
+        auto f = [&handle](const char *name) { return onek::make_arena_ptr<C>(handle, name, onek::FLAG_PLACEHOLDER); };
 
-        // ATTENTION! Note that the placeholders are bound to their original productions by neame search.
+        // ATTENTION! Note that the placeholders are bound to their original productions by name search.
         // Misspelling the names "expression" and "term" above will result in an error
-        // Diagnostic messages for thes errors will only be produced if the last parameter of function
+        // Diagnostic messages for these errors will only be produced if the last parameter of function
         // rewire_placeholders below is 'true'
 
         // clang-format off
@@ -128,7 +122,7 @@ namespace example {
         auto program =          prod( expression >> the_end()                         , "program");
         // clang-format on
 
-        onek::rewire_placeholders<F> (program.get(), true);
+        onek::wire_placeholders<F>(program.get(), true);
         return program;
     }
 }
@@ -143,6 +137,10 @@ void test_expression(std::string_view text, long right_result, char const *ast_g
     auto scn = onek::scan_state(text);
     auto program = example::grammar(scn);
     auto ast = program->parse(scn, nullptr, true);
+    {
+        auto handle = onek::arena_handle(program);
+        handle.set_destroy_arena_on_scope_exit();
+    }
     if (!ast) {
         BOOST_CHECK_MESSAGE(false, std::string(text) + " did not compile");
         onek::log::print_error_messages();
@@ -157,10 +155,7 @@ void test_expression(std::string_view text, long right_result, char const *ast_g
             BOOST_CHECK_MESSAGE(long_result == right_result, "result of " + std::string(text) + " should be "
                                                                  + std::to_string(right_result) + " is " + std::to_string(long_result));
     }
-    auto handle = onek::arena_handle(program);
-    auto destroyer = onek::arena_destroyer(handle);
 }
-
 
 // clang-format off
 BOOST_AUTO_TEST_SUITE(arithmetic_expressions);

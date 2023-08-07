@@ -4,70 +4,48 @@
 #include <memory_resource>
 
 namespace onek {
-    class ptr_base;
-    class arena_handle;
-    template<typename>
-    class arena_ptr;
 
-    class arena {// todo: extend buffer chain on buffer overflow
-        static inline constexpr size_t MIN_SIZE = 10000000;
-        std::pmr::monotonic_buffer_resource mbr{MIN_SIZE};
-        std::pmr::polymorphic_allocator<std::byte> pa{&mbr};
+    namespace detail {
 
-        friend class arena_handle;
-        friend class arena_destroyer;
-        template<typename T, typename... Args>
-        friend arena_ptr<T> make_arena_ptr(arena_handle &, Args &&...);
-        template<typename T>
-        friend arena_ptr<T> make_arena_ptr(arena_handle &, T const &);
-    };
+        struct arena {
+            static inline constexpr size_t MIN_SIZE = 10000000;
+            std::pmr::monotonic_buffer_resource mbr{MIN_SIZE};
+            std::pmr::polymorphic_allocator<std::byte> pa{&mbr};
+        };
 
-    class ptr_base {
-        public:
-        arena *arena_ = nullptr;
-        explicit ptr_base(arena *arena_) : arena_(arena_) {}
+        class ptr_base {
+            public:
+            detail::arena *arena_ = nullptr;
+            explicit ptr_base(detail::arena *arena_) : arena_(arena_) {}
+        };
+    }
 
-        friend arena_handle;
-        template<typename T, typename... Args>
-        friend arena_ptr<T> make_arena_ptr(arena_handle &, Args &&...);
-        template<typename T>
-        friend arena_ptr<T> make_arena_ptr(arena_handle &, T const &);
-    };
-
-    // exported interface
+    template<typename> class arena_ptr;
 
     class arena_handle {
-        arena *arena_ = nullptr;
-
+        detail::arena *arena_ = nullptr;
+        bool destroy_arena_ = false;
         public:
         arena_handle() = default;
-        explicit arena_handle(ptr_base const &base) : arena_(base.arena_){};
-
-        friend class arena_destroyer;
-        template<typename T, typename... Args>
-        friend arena_ptr<T> make_arena_ptr(arena_handle &, Args &&...);
-        template<typename T>
-        friend arena_ptr<T> make_arena_ptr(arena_handle &, T const &);
-    };
-
-    class arena_destroyer {
-        arena *arena_;
-
-        public:
-        explicit arena_destroyer(arena_handle const &handle) : arena_(handle.arena_) {}
-        ~arena_destroyer() {
-            if (arena_) {
+        explicit arena_handle(detail::ptr_base const &p) : arena_(p.arena_){};
+        ~arena_handle () {
+            if (arena_ && destroy_arena_) {
                 delete arena_;
                 arena_ = nullptr;
             }
         }
+        void set_destroy_arena_on_scope_exit() {destroy_arena_ = true;}
+
+        template<typename T, typename... Args>
+        friend arena_ptr<T> make_arena_ptr(arena_handle &, Args &&...);
+        template<typename T>
+        friend arena_ptr<T> make_arena_ptr(arena_handle &, T const &);
     };
 
     template<typename T>
-    class arena_ptr : public ptr_base {
-        public:
+    class arena_ptr : public detail::ptr_base {
         mutable T *value_ptr_ = nullptr;
-        arena_ptr(arena *arena_, T *value_ptr_) : ptr_base{arena_}, value_ptr_(value_ptr_) {}
+        arena_ptr(detail::arena *arena_, T *value_ptr_) : detail::ptr_base{arena_}, value_ptr_(value_ptr_) {}
 
         public:
         arena_ptr() : ptr_base(nullptr), value_ptr_(nullptr){};
@@ -87,16 +65,16 @@ namespace onek {
 
         friend arena_handle;
         template<typename U, typename... Args>
-        friend arena_ptr<U> make_arena_ptr(arena_handle &, Args &&...);
+        friend arena_ptr<U> make_arena_ptr(arena_handle &handle, Args &&...args);
         template<typename U>
-        friend arena_ptr<U> make_arena_ptr(arena_handle &, U const &);
+        friend arena_ptr<U> make_arena_ptr(arena_handle &handle, U const &other);
     };
 
     template<typename T>
     arena_ptr<T> make_arena_ptr(arena_handle &handle, T const &other) {
         auto &a = handle.arena_;
         if (!a)
-            a = new arena;
+            a = new detail::arena;
         T *value = a->pa.new_object<T>(other);
         return arena_ptr(a, value);
     }
@@ -105,7 +83,7 @@ namespace onek {
     arena_ptr<T> make_arena_ptr(arena_handle &handle, Args &&...args) {
         auto &a = handle.arena_;
         if (!a)
-            a = new arena;
+            a = new detail::arena;
         T *value = a->pa.new_object<T>(std::forward<Args>(args)...);
         return arena_ptr(a, value);
     }

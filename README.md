@@ -28,16 +28,16 @@ Here is a grammar for an arithmetic expression evaluator. Note that most of the 
         auto ident = [&scn, &handle]() { return onek::make_arena_ptr<T>(handle, onek::token_id::ident, scn, "^[A-Z][A-Z0-9_-]+"); };
         auto open = [&scn, &handle]<typename... F>(F... f) { return onek::make_arena_ptr<T>(handle, onek::token_id::open, scn, onek::FilterType{f...}); };
         auto close = [&scn, &handle]<typename... F>(F... f) { return onek::make_arena_ptr<T>(handle, onek::token_id::close, scn, onek::FilterType{f...}); };
-        auto prefix_op = [&scn, &handle]<typename... F>(F... f) { return onek::make_arena_ptr<T>(handle, onek::token_id::func, scn, onek::FilterType{f...}, onek::TOKEN_FLAG_PREFIX); };
-        auto infix_op = [&scn, &handle]<typename... F>(F... f) { return onek::make_arena_ptr<T>(handle, onek::token_id::func, scn, onek::FilterType{f...}, onek::TOKEN_FLAG_INFIX); };
-        auto postfix_op = [&scn, &handle]<typename... F>(F... f) { return onek::make_arena_ptr<T>(handle, onek::token_id::func, scn, onek::FilterType{f...}, onek::TOKEN_FLAG_POSTFIX); };
+        auto prefix_op = [&scn, &handle]<typename... F>(F... f) { return onek::make_arena_ptr<T>(handle, onek::token_id::func, scn, onek::FilterType{f...}, onek::FLAG_PREFIX); };
+        auto infix_op = [&scn, &handle]<typename... F>(F... f) { return onek::make_arena_ptr<T>(handle, onek::token_id::func, scn, onek::FilterType{f...}, onek::FLAG_INFIX); };
+        auto postfix_op = [&scn, &handle]<typename... F>(F... f) { return onek::make_arena_ptr<T>(handle, onek::token_id::func, scn, onek::FilterType{f...}, onek::FLAG_POSTFIX); };
         auto func = prefix_op;
 
         // shortcuts for creating placeholders
         // lambda p creates a normal placeholder
         // lambda f creates a placeholder that does not create a new action root
-        auto p = [&handle](const char * name) { return onek::make_arena_ptr<C>(handle, name, onek::TOKEN_FLAG_PLACEHOLDER | onek::TOKEN_FLAG_ACTION_PARENT); };
-        auto f = [&handle](const char * name) { return onek::make_arena_ptr<C>(handle, name, onek::TOKEN_FLAG_PLACEHOLDER); };
+        auto p = [&handle](const char * name) { return onek::make_arena_ptr<C>(handle, name, onek::FLAG_PLACEHOLDER | onek::FLAG_ACTION_PARENT); };
+        auto f = [&handle](const char * name) { return onek::make_arena_ptr<C>(handle, name, onek::FLAG_PLACEHOLDER); };
 
         // clang-format off
         auto sub_expression =   prod( open("(") >> p("expression") >> close(")")      , "sub");

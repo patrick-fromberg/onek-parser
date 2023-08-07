@@ -55,7 +55,7 @@ namespace onek {
     template <typename P>
     P&& prod(P && p, typename  ast_node<typename P::element_type::configuration>::action_function const& act, char const *name) {
         p->name_ = name;
-        p->flags_ = TOKEN_FLAG_ACTION_PARENT;
+        p->flags_ = FLAG_ACTION_PARENT;
         p->action_ = act;
         return std::forward<P>(p);
     }

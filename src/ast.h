@@ -13,21 +13,21 @@
 
 namespace onek {
 
-    template<typename Configuration>
+    template<typename F>
     struct ast {
-        using ast_node_value = Configuration::ast_node_value;
-        using ast_node_t = ast_node<Configuration>;
-        std::deque<ast_node<Configuration>> memory_;// Container may not invalidate iterators (vector would crash)
+        //using V = F::V;
+        using N = ast_node<F>;
+        std::deque<ast_node<F>> memory_; // Container may not invalidate iterators (vector would crash)
 
         // todo: remove name parameter and guess it later on
-        ast_node_t *add_node(ast_node_t::action_function action, token_id id, const char *name, ast_node_t *parent_node, std::string_view const &tokenstr, unsigned short flags = TOKEN_FLAG_NONE) noexcept {
+        N *add_node(N::action_function action, token_id id, const char *name, N *parent_node, std::string_view const &tokenstr, unsigned short flags = FLAG_NONE) noexcept {
 
             // mark nodes that are roots of a bracketed expression. This is only for
             // pretty printing the ast in to a grapviz file.
             auto xxx = parent_node;
-            if (id == token_id::open) {//todo: rename id which is different from graph disambituation id
+            if (id == token_id::open) {//todo: rename id which is different from graph disambiguation id
                 while (xxx) {
-                    if (xxx->flags & TOKEN_FLAG_ACTION_PARENT) {
+                    if (xxx->flags & FLAG_ACTION_PARENT) {
                         xxx->tokenstr = "(...)";
                         break;
                     }
@@ -36,27 +36,27 @@ namespace onek {
             }
 
             // store the node in an arena
-            memory_.emplace_back(ast_node_t{action, id, tokenstr, name, flags, parent_node});
+            memory_.emplace_back(N{action, id, tokenstr, name, flags, parent_node});
 
             // add it to a parent node that is also bound to an action such that the
             // tree is flattened in a way that actions can be implemented by traversing
             // the children of the action nodes - from left to right to get left associativity
             // and vice versa to get right associativity.
-            ast_node_t *added_node = &memory_.back();
+            N *added_node = &memory_.back();
 
             if (id == token_id::open || id == token_id::close)
                 return added_node;
 
-            if (id == token_id::composed && !(TOKEN_FLAG_ACTION_PARENT & flags)) {
+            if (id == token_id::composed && !(FLAG_ACTION_PARENT & flags)) {
                 if (!parent_node) {
-                    added_node->flags |= TOKEN_FLAG_ACTION_PARENT;
+                    added_node->flags |= FLAG_ACTION_PARENT;
                     added_node->name_ = "start";
                 }
                 return added_node;
             }
 
             while (parent_node) {
-                if (parent_node->flags & TOKEN_FLAG_ACTION_PARENT) {
+                if (parent_node->flags & FLAG_ACTION_PARENT) {
                     parent_node->add_child(added_node);
                     break;
                 }
@@ -65,11 +65,11 @@ namespace onek {
             return added_node;
         }
 
-        void print_node(ast_graph &graph, ast_node_t *n) {
-            for (ast_node_t *sibbling = n->first_child_; sibbling != nullptr; sibbling = sibbling->next_sibbling_)
-                graph.add_edge(n->name_, n->id, sibbling->name_, sibbling->tokenstr, sibbling->id);
-            for (ast_node_t *sibbling = n->first_child_; sibbling != nullptr; sibbling = sibbling->next_sibbling_)
-                print_node(graph, sibbling);
+        void print_node(ast_graph &graph, N *n) {
+            for (N *child = n->first_child_; child != nullptr; child = child->next_sibbling_)
+                graph.add_edge(n->name_, n->id, child->name_, child->tokenstr, child->id);
+            for (N *child = n->first_child_; child != nullptr; child = child->next_sibbling_)
+                print_node(graph, child);
         }
 
         void create_ast_graphviz_file(char const *file_name) {
@@ -77,17 +77,17 @@ namespace onek {
             print_node(graph, get_root_node());
         }
 
-        ast_node_t *get_root_node() noexcept {
-            ast_node_t &x_ref = memory_.front();
-            ast_node_t *x = &x_ref;
+        N *get_root_node() noexcept {
+            N &x_ref = memory_.front();
+            N *x = &x_ref;
             while (x->parent_)
                 x = x->parent_;
             return x;
         }
 
-        ast_node_value execute() noexcept {
-            ast_node_t const *start = get_root_node();
-            ast_node_value result = start->action();
+        F::V execute() noexcept {
+            N const *start = get_root_node();
+            auto result = start->action();
             log::log_result(result);
             return {result};
         }
@@ -101,18 +101,18 @@ namespace onek {
     //
     // todo: find another solution. Its not clear that this is a specialisation. Maybe it
     // should simply be an independent class of its own?
-    template<typename Configuration>
-    class status_saver<ast<Configuration>> {
-        using ast_node_t = ast_node<Configuration>;
-        const ast_node_t backup_;
-        ast_node_t *original_;
+    template<typename F>
+    class status_saver<ast<F>> {
+        using N = ast_node<F>;
+        const N backup_;
+        N *original_;
         size_t vector_size_;
 
         public:
-        status_saver(ast<Configuration> const &tree, ast_node_t *parent) noexcept
-            : backup_(parent ? *parent : ast_node_t{}), original_(parent ? parent : nullptr), vector_size_(tree.memory_.size()) {
+        status_saver(ast<F> const &tree, N *parent) noexcept
+            : backup_(parent ? *parent : N{}), original_(parent ? parent : nullptr), vector_size_(tree.memory_.size()) {
         }
-        void restore_to(ast<Configuration> &tree) const noexcept {
+        void restore_to(ast<F> &tree) const noexcept {
             if (!tree.memory_.empty() && vector_size_ > 0 && vector_size_ < tree.memory_.size())// to-do - we could use guarantees
                 tree.memory_.erase(tree.memory_.begin() + vector_size_);
 

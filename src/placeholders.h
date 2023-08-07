@@ -4,9 +4,8 @@
 
 namespace onek {
 
-
         template<typename F>
-        void rewire_placeholders(parser_base<F> *b, bool produceDiagnostics = false) {
+        void wire_placeholders(parser_base<F> *b, bool produceDiagnostics = false) {
             // todo: do something with parameter produceDiagnostics
             using C = composed_parser<F>;
 
@@ -29,7 +28,7 @@ namespace onek {
 
             // if it is a placeholder, bind it to the original parser
             // todo: try not to reinterpret case
-            if (c->flags_ & TOKEN_FLAG_PLACEHOLDER && !c->left_) {
+            if (c->flags_ & FLAG_PLACEHOLDER && !c->left_) {
                 auto parent = c->parent_;
                 assert(!c->right_);
                 while (true) {
@@ -43,7 +42,7 @@ namespace onek {
             }
 
             // else continue search left and right
-            rewire_placeholders(c->left_);
-            rewire_placeholders(c->right_);
+            wire_placeholders(c->left_);
+            wire_placeholders(c->right_);
         }
 }

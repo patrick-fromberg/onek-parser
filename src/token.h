@@ -18,14 +18,14 @@ namespace onek {
         composed
     };
 
-    constexpr unsigned short TOKEN_FLAG_NONE = 0;
-    constexpr unsigned short TOKEN_FLAG_DELIM_IN_BETWEEN = 4;
-    constexpr unsigned short TOKEN_FLAG_DELIM_AT_END = 8;
-    constexpr unsigned short TOKEN_FLAG_ACTION_PARENT = 16;
-    constexpr unsigned short TOKEN_FLAG_PREFIX = 32;
-    constexpr unsigned short TOKEN_FLAG_INFIX = 64;
-    constexpr unsigned short TOKEN_FLAG_POSTFIX = 128;
-    constexpr unsigned short TOKEN_FLAG_PLACEHOLDER = 256;
+    constexpr unsigned short FLAG_NONE = 0;
+    constexpr unsigned short FLAG_DELIM_IN_BETWEEN = 4;
+    constexpr unsigned short FLAG_DELIM_AT_END = 8;
+    constexpr unsigned short FLAG_ACTION_PARENT = 16;
+    constexpr unsigned short FLAG_PREFIX = 32;
+    constexpr unsigned short FLAG_INFIX = 64;
+    constexpr unsigned short FLAG_POSTFIX = 128;
+    constexpr unsigned short FLAG_PLACEHOLDER = 256;
 
     const char *token_to_string(token_id id) noexcept {
         switch (id) {
