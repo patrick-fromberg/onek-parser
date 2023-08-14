@@ -1,16 +1,15 @@
-#pragma once
+module;
 
 #include <map>
 #include <fstream>
-#include <memory>
 #include <string_view>
 #include <vector>
-#include <cstring>
-#include <cassert>
 
-namespace onek {
+export module ast_graph;
 
-    static ushort uuid = 0;//todo: put somewhere else
+export namespace onek {
+
+    ushort uuid = 0;//todo: put somewhere else
 
     class ast_graph {
         public:

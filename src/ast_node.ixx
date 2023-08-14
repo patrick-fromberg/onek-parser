@@ -1,12 +1,14 @@
-#pragma once
+module;
 
-#include "ast_node.h"
-#include "token.h"
-#include "ast_graph.h"
 #include <functional>
-#include <variant>
+#include <string_view>
 
-namespace onek {
+export module ast_node;
+
+import token;
+import ast_graph;
+
+export namespace onek {
 
     template<typename F>
     struct ast_node {

@@ -1,8 +1,14 @@
-#pragma once
-#include "parser.h"
-#include <cstring>
+module;
 
-namespace onek {
+#include <cstring>
+#include <cassert>
+
+export module placeholders;
+
+import token;
+import parser;
+
+export namespace onek {
 
         template<typename F>
         void wire_placeholders(parser_base<F> *b, bool produceDiagnostics = false) {

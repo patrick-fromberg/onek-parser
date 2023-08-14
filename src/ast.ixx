@@ -1,21 +1,21 @@
-#pragma once
+module;
 
-#include "ast_graph.h"
-#include "ast_node.h"
-#include "error_messages.h"
-#include "status_saver_template.h"
-#include "token.h"
 #include <deque>
 #include <functional>
-#include <memory>
-#include <stack>
 #include <string_view>
 
-namespace onek {
+export module ast;
+
+import token;
+import ast_graph;
+import status_saver_template;
+import error_messages;
+import ast_node;
+
+export namespace onek {
 
     template<typename F>
     struct ast {
-        //using V = F::V;
         using N = ast_node<F>;
         std::deque<ast_node<F>> memory_; // Container may not invalidate iterators (vector would crash)
 

@@ -1,13 +1,21 @@
-#pragma once
+module;
 
-#include "parser.h"
-#include "ast_node.h"
-#include "scan_state.h"
-#include "arena_ptr.h"
-#include <memory>
-#include <type_traits>
+//#include <memory>
+//#include <regex>
+#include <utility>
+#include <string>
 
-namespace onek {
+export module parser_combinators;
+
+import arena_ptr;
+import token;
+import ast;
+import parser;
+import scan_state;
+import ast_node;
+
+
+export namespace onek {
 
     template<typename L, typename R>
     auto operator>>(L left, R right) {

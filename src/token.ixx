@@ -1,8 +1,10 @@
-#pragma once
+module;
 
 #include <array>
 
-namespace onek {
+export module token;
+
+export namespace onek {
 
     enum class token_id : unsigned short {
         error,

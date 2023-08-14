@@ -1,12 +1,12 @@
-#pragma once
+module;
 
-#include <memory>
 #include <memory_resource>
+
+export module arena_ptr;
 
 namespace onek {
 
     namespace detail {
-
         struct arena {
             static inline constexpr size_t MIN_SIZE = 10000000;
             std::pmr::monotonic_buffer_resource mbr{MIN_SIZE};
@@ -15,26 +15,28 @@ namespace onek {
 
         class ptr_base {
             public:
-            detail::arena *arena_ = nullptr;
-            explicit ptr_base(detail::arena *arena_) : arena_(arena_) {}
+            arena *arena_ = nullptr;
+            explicit ptr_base(arena *arena_) : arena_(arena_) {}
         };
     }
 
-    template<typename> class arena_ptr;
+    export template<typename>
+    class arena_ptr;
 
-    class arena_handle {
+    export class arena_handle {
         detail::arena *arena_ = nullptr;
         bool destroy_arena_ = false;
+
         public:
         arena_handle() = default;
         explicit arena_handle(detail::ptr_base const &p) : arena_(p.arena_){};
-        ~arena_handle () {
+        ~arena_handle() {
             if (arena_ && destroy_arena_) {
                 delete arena_;
                 arena_ = nullptr;
             }
         }
-        void set_destroy_arena_on_scope_exit() {destroy_arena_ = true;}
+        void set_destroy_arena_on_scope_exit() { destroy_arena_ = true; }
 
         template<typename T, typename... Args>
         friend arena_ptr<T> make_arena_ptr(arena_handle &, Args &&...);
@@ -42,10 +44,10 @@ namespace onek {
         friend arena_ptr<T> make_arena_ptr(arena_handle &, T const &);
     };
 
-    template<typename T>
+    export template<typename T>
     class arena_ptr : public detail::ptr_base {
         mutable T *value_ptr_ = nullptr;
-        arena_ptr(detail::arena *arena_, T *value_ptr_) : detail::ptr_base{arena_}, value_ptr_(value_ptr_) {}
+        arena_ptr(detail::arena *arena_, T *value_ptr_) : ptr_base{arena_}, value_ptr_(value_ptr_) {}
 
         public:
         arena_ptr() : ptr_base(nullptr), value_ptr_(nullptr){};
@@ -70,7 +72,7 @@ namespace onek {
         friend arena_ptr<U> make_arena_ptr(arena_handle &handle, U const &other);
     };
 
-    template<typename T>
+    export template<typename T>
     arena_ptr<T> make_arena_ptr(arena_handle &handle, T const &other) {
         auto &a = handle.arena_;
         if (!a)
@@ -79,7 +81,7 @@ namespace onek {
         return arena_ptr(a, value);
     }
 
-    template<typename T, typename... Args>
+    export template<typename T, typename... Args>
     arena_ptr<T> make_arena_ptr(arena_handle &handle, Args &&...args) {
         auto &a = handle.arena_;
         if (!a)

@@ -1,18 +1,26 @@
-#pragma once
+module;
 
-#include "ast.h"
-#include "ast_node.h"
-#include "scan_state.h"
-#include "error_messages.h"
 #include <array>
 #include <functional>
 #include <optional>
 #include <iterator>
 #include <string_view>
+#include <string>
+#include <cstring>
 #include <algorithm>
 #include <regex>
+#include <cassert>
 
-namespace onek {
+export module parser;
+
+import status_saver_template;
+import scan_state;
+import token;
+import error_messages;
+import ast;
+import ast_node;
+
+export namespace onek {
 
     template<typename F>
     class composed_parser;

@@ -1,12 +1,21 @@
-#include "onek/onek-parser.h"
 #include <string_view>
 #include <variant>
+#include <cassert>
 
 #define BOOST_TEST_DYN_LINK
-//#define BOOST_TEST_MAIN  // in only one cpp file
 #define BOOST_TEST_MODULE Calculator
 #include <boost/test/unit_test.hpp>
 #include <boost/type_index.hpp>
+
+import arena_ptr;
+import ast;
+import ast_node;
+import parser_combinators;
+import error_messages;
+import placeholders;
+import parser;
+import token;
+import scan_state;
 
 namespace example {
 
@@ -169,3 +178,4 @@ BOOST_AUTO_TEST_CASE(associativity7)        { test_expression("1 - 2 + 3", 2, "a
 BOOST_AUTO_TEST_CASE(negative_number8)      { test_expression("(1 - -2) * 3", 9, "ast8.gv"); }
 BOOST_AUTO_TEST_SUITE_END();
 // clang-format on
+

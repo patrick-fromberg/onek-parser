@@ -1,9 +1,11 @@
-#pragma once
+module;
 
 #include <string>
 #include <cstring>
 
-namespace onek {
+export module scan_state;
+
+export namespace onek {
 
     using scan_ptr = char const *;
     struct scan_state {

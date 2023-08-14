@@ -1,4 +1,4 @@
-#pragma once
+module;
 
 #include <boost/circular_buffer.hpp>
 #include <iostream>
@@ -10,7 +10,11 @@
 #include <variant>
 #include <algorithm>
 
-namespace onek {
+export module error_messages;
+
+import token;
+
+export namespace onek {
 
     class log {
         static inline auto cb = boost::circular_buffer<std::stringstream>(30);

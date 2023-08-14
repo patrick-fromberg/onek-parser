@@ -1,6 +1,6 @@
-#pragma once
+export module status_saver_template;
 
-namespace onek {
+export namespace onek {
 
     template<typename T>
     //requires copy constructor from T
@@ -16,5 +16,4 @@ namespace onek {
             x = status_;
         }
     };
-
 }
