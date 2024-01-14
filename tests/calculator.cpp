@@ -28,6 +28,7 @@ namespace example {
                     default: break;
                 }
                 assert(false);
+		return {};
             } else {
                 auto child = node.first_child_->next_sibbling_;
                 assert(!child || child->token_id_ == onek::token_id::the_end);

@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.26)
 project(onek-cpp-parser)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+set(CMAKE_CONFIGURATION_TYPES Debug;Release;Asan)
 add_subdirectory(src)
 add_subdirectory(tests)
